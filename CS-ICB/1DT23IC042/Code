@@ -1,0 +1,187 @@
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
+
+public class SimpleHabitTracker {
+
+    private static final String DATA_FILE = "habits.txt";
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ISO_DATE;
+    private static List<Habit> habits = new ArrayList<>();
+
+    public static void main(String[] args) {
+        loadHabits();
+
+        Scanner scanner = new Scanner(System.in);
+
+        while (true) {
+            System.out.println("\nSimple Habit Tracker (Console)");
+            System.out.println("1. Add new habit");
+            System.out.println("2. Mark habit as completed");
+            System.out.println("3. View habits and streaks");
+            System.out.println("4. Exit");
+            System.out.print("Enter your choice: ");
+
+            String choice = scanner.nextLine();
+
+            switch (choice) {
+                case "1":
+                    addHabit(scanner);
+                    break;
+                case "2":
+                    markHabitCompleted(scanner);
+                    break;
+                case "3":
+                    viewHabitsAndStreaks();
+                    break;
+                case "4":
+                    saveHabits();
+                    System.out.println("Exiting Habit Tracker. Data saved.");
+                    scanner.close();
+                    return;
+                default:
+                    System.out.println("Invalid choice. Please try again.");
+            }
+        }
+    }
+
+    private static void addHabit(Scanner scanner) {
+        System.out.print("Enter the name of the new habit: ");
+        String habitName = scanner.nextLine();
+        habits.add(new Habit(habitName));
+        System.out.println("Habit '" + habitName + "' added successfully.");
+    }
+
+    private static void markHabitCompleted(Scanner scanner) {
+        if (habits.isEmpty()) {
+            System.out.println("No habits to mark as completed. Add a habit first.");
+            return;
+        }
+
+        System.out.println("\nYour Habits:");
+        for (int i = 0; i < habits.size(); i++) {
+            System.out.println((i + 1) + ". " + habits.get(i).getName());
+        }
+
+        System.out.print("Enter the number of the habit to mark as completed: ");
+        if (scanner.hasNextInt()) {
+            int habitNumber = scanner.nextInt();
+            scanner.nextLine(); // Consume newline
+
+            if (habitNumber > 0 && habitNumber <= habits.size()) {
+                Habit habitToMark = habits.get(habitNumber - 1);
+                LocalDate today = LocalDate.now();
+                habitToMark.markCompleted(today);
+                System.out.println("Habit '" + habitToMark.getName() + "' marked as completed for " + today.format(DATE_FORMATTER));
+            } else {
+                System.out.println("Invalid habit number.");
+            }
+        } else {
+            System.out.println("Invalid input. Please enter a number.");
+            scanner.nextLine(); // Consume invalid input
+        }
+    }
+
+    private static void viewHabitsAndStreaks() {
+        if (habits.isEmpty()) {
+            System.out.println("No habits to view. Add some habits first.");
+            return;
+        }
+
+        System.out.println("\n--- Your Habits and Streaks ---");
+        for (Habit habit : habits) {
+            System.out.println("Habit: " + habit.getName());
+            System.out.println("  Current Streak: " + habit.getCurrentStreak());
+            System.out.println("  Last Completed: " + (habit.getLastCompleted() != null ? habit.getLastCompleted().format(DATE_FORMATTER) : "Never"));
+            System.out.println("----------------------------");
+        }
+    }
+
+    private static void loadHabits() {
+        File file = new File(DATA_FILE);
+        if (file.exists()) {
+            try (Scanner fileScanner = new Scanner(file)) {
+                while (fileScanner.hasNextLine()) {
+                    String line = fileScanner.nextLine();
+                    String[] parts = line.split(",");
+                    if (parts.length >= 2) {
+                        String name = parts[0];
+                        Habit habit = new Habit(name);
+                        if (parts.length > 1 && !parts[1].equals("null")) {
+                            habit.setLastCompleted(LocalDate.parse(parts[1]));
+                        }
+                        if (parts.length > 2) {
+                            try {
+                                habit.setCurrentStreak(Integer.parseInt(parts[2]));
+                            } catch (NumberFormatException e) {
+                                // Handle potential error if streak is not a valid number
+                            }
+                        }
+                        habits.add(habit);
+                    }
+                }
+            } catch (IOException e) {
+                System.err.println("Error loading habits from file: " + e.getMessage());
+            }
+        }
+    }
+
+    private static void saveHabits() {
+        try (FileWriter writer = new FileWriter(DATA_FILE)) {
+            for (Habit habit : habits) {
+                writer.write(habit.getName() + "," + habit.getLastCompleted() + "," + habit.getCurrentStreak() + "\n");
+            }
+        } catch (IOException e) {
+            System.err.println("Error saving habits to file: " + e.getMessage());
+        }
+    }
+}
+
+class Habit {
+    private String name;
+    private LocalDate lastCompleted;
+    private int currentStreak;
+
+    public Habit(String name) {
+        this.name = name;
+        this.lastCompleted = null;
+        this.currentStreak = 0;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public LocalDate getLastCompleted() {
+        return lastCompleted;
+    }
+
+    public void setLastCompleted(LocalDate lastCompleted) {
+        this.lastCompleted = lastCompleted;
+    }
+
+    public int getCurrentStreak() {
+        return currentStreak;
+    }
+
+    public void setCurrentStreak(int currentStreak) {
+        this.currentStreak = currentStreak;
+    }
+
+    public void markCompleted(LocalDate date) {
+        if (lastCompleted != null && date.minusDays(1).isEqual(lastCompleted)) {
+            currentStreak++;
+        } else if (lastCompleted == null || date.isEqual(LocalDate.now())) {
+            currentStreak = (lastCompleted == null || date.isEqual(LocalDate.now())) ? (lastCompleted == null ? 1 : (date.isEqual(lastCompleted) ? currentStreak : 1)) : 0;
+        } else if (!date.isEqual(lastCompleted)){
+            currentStreak = 1;
+        }
+        this.lastCompleted = date;
+    }
+}
